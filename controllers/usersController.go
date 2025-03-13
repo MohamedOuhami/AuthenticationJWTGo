@@ -1,8 +1,10 @@
 package controllers
 
 import (
+	"fmt"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/MohamedOuhami/AuthenticationJWTGo/initializers"
@@ -21,8 +23,10 @@ func Signup(c *gin.Context) {
 
 	// We first create a struct for the body that we're expecting
 	var body struct {
-		Email    string
-		Password string
+		FirstName string
+		LastName  string
+		Email     string
+		Password  string
 	}
 
 	// Bind the context to the body to take the info that we need
@@ -37,9 +41,20 @@ func Signup(c *gin.Context) {
 		return
 	}
 
+	fmt.Println("Read the body successfully")
+
 	// Hash the password
 	// Using the bcrypt, we gonna hash the password
 
+	if !strings.HasSuffix(body.Email, "b4pscorp.com") && !strings.HasSuffix(body.Email, "kal.com") {
+		fmt.Println("The email is not valid")
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Invalid email",
+		})
+		return
+	}
+
+	fmt.Println("The email is valid")
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(body.Password), 10)
 
 	if err != nil {
@@ -52,7 +67,7 @@ func Signup(c *gin.Context) {
 	}
 
 	// Create the user
-	user := models.User{Email: body.Email, Password: string(hashedPassword)}
+	user := models.User{Email: body.Email, Password: string(hashedPassword), FirstName: body.FirstName, LastName: body.LastName}
 
 	result := initializers.DB.Create(&user)
 
@@ -118,8 +133,9 @@ func Login(c *gin.Context) {
 
 	// Generate a JWT token and send It back
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"sub": foundUser.ID,
-		"exp": time.Now().Add(time.Hour * 24).Unix(),
+		"sub":  foundUser.ID,
+		"name": foundUser.FirstName,
+		"exp":  time.Now().Add(time.Hour * 24).Unix(),
 	})
 
 	// Sign and get the complete encoded token as a string using the secret
@@ -136,7 +152,7 @@ func Login(c *gin.Context) {
 
 	// Return the token as a Cookie
 	c.SetSameSite(http.SameSiteLaxMode)
-	c.SetCookie("Authorization", tokenString, 3600*24, "", "", false, true)
+	c.SetCookie("Authorization", tokenString, 3600*24, "", "", false, false)
 
 	c.JSON(http.StatusOK, gin.H{})
 }
@@ -144,7 +160,7 @@ func Login(c *gin.Context) {
 // Validate endpoints for Authorization
 func Validate(c *gin.Context) {
 
-  user,_ := c.Get("user")
+	user, _ := c.Get("user")
 
 	c.JSON(http.StatusOK, gin.H{
 		"user": user,
